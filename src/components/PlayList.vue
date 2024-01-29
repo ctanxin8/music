@@ -1,140 +1,141 @@
 <template>
-  <div class="play-list">
-    <div class="play-title" v-if="title">{{ title }}</div>
-    <ul class="play-body">
-      <li class="card-frame" v-for="(item, index) in playList" :key="index">
-        <div class="card" @click="goAblum(item)">
-          <el-image class="card-img" fit="contain" :src="attachImageUrl(item.pic)" />
-          <div class="mask" @click="goAblum(item)">
-            <yin-icon class="mask-icon" :icon="BOFANG"></yin-icon>
-          </div>
+  <Toggle
+    :reserveDoms="reserveDoms"
+    :show="isPlaylistShow"
+    @update:show="setPlaylistShow(false)"
+  >
+    <div
+      class="playlist"
+      ref="playlist"
+      v-show="isPlaylistShow"
+    >
+      <Tabs
+        :tabs="tabs"
+        align="center"
+        v-model="activeTab"
+      />
+      <div class="header">
+        <p class="total">总共{{dataSource.length}}首</p>
+        <div
+          @click="clear"
+          class="remove"
+          v-if="dataSource.length"
+        >
+          <Icon type="remove" />
+          <span class="text">清空</span>
         </div>
-        <p class="card-name">{{ item.name || item.title }}</p>
-      </li>
-    </ul>
-  </div>
+      </div>
+      <template>
+        <div
+          class="song-table-wrap"
+          v-if="dataSource.length"
+        >
+          <SongTable
+            :hideColumns="['index', 'img', 'albumName']"
+            :songs="dataSource"
+          />
+        </div>
+        <div
+          class="empty"
+          v-else
+        >你还没有添加任何歌曲</div>
+      </template>
+    </div>
+  </Toggle>
 </template>
 
-<script lang="ts">
-import { defineComponent, getCurrentInstance, toRefs } from "vue";
-
-import YinIcon from "@/components/layouts/YinIcon.vue";
-import mixin from "@/mixins/mixin";
-import { Icon } from "@/enums";
-import { HttpManager } from "@/api";
-
-export default defineComponent({
-  components: {
-    YinIcon,
+<script type="text/ecmascript-6">
+import { mapState, mapMutations, mapActions } from "@/store/helper/music"
+import SongTable from "./song-table"
+export default {
+  mounted() {
+    // 点击需要保留播放器的dom
+    this.reserveDoms = [document.getElementById("mini-player")]
   },
-  props: {
-    title: String,
-    playList: Array,
-    path: String,
-  },
-  setup(props) {
-    const { proxy } = getCurrentInstance();
-    const { routerManager } = mixin();
-
-    const { path } = toRefs(props);
-
-    function goAblum(item) {
-      proxy.$store.commit("setSongDetails", item);
-      routerManager(path.value, { path: `/${path.value}/${item.id}` });
-    }
+  data() {
+    this.tabs = ["播放列表", "历史记录"]
+    this.LIST_TAB = 0
+    this.HISTORY_TAB = 1
 
     return {
-      BOFANG: Icon.BOFANG,
-      goAblum,
-      attachImageUrl: HttpManager.attachImageUrl,
-    };
+      activeTab: this.LIST_TAB,
+      reserveDoms: null
+    }
   },
-});
+  methods: {
+    clear() {
+      if (this.isPlaylist) {
+        this.clearPlaylist()
+      } else {
+        this.clearHistory()
+      }
+    },
+    ...mapMutations(["setPlaylistShow", "setPlaylist"]),
+    ...mapActions(["clearCurrentSong", "clearPlaylist", "clearHistory"])
+  },
+  computed: {
+    dataSource() {
+      return this.isPlaylist ? this.playlist : this.playHistory
+    },
+    isPlaylist() {
+      return this.activeTab === this.LIST_TAB
+    },
+    ...mapState(["isPlaylistShow", "playlist", "playHistory"])
+  },
+  components: {
+    SongTable
+  }
+}
 </script>
 
 <style lang="scss" scoped>
-@import "@/assets/css/var.scss";
-@import "@/assets/css/global.scss";
+@import "~@/style/element-overwrite.scss";
 
-.play-list {
-  padding: 0 1rem;
+.playlist {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  bottom: $mini-player-height;
+  display: flex;
+  flex-direction: column;
+  background: var(--playlist-bgcolor);
+  z-index: $playlist-z-index;
+  @include box-shadow;
+  @include el-table-theme(var(--playlist-bgcolor));
 
-  .play-title {
-    height: 60px;
-    line-height: 60px;
-    font-size: 28px;
-    font-weight: 500;
-    text-align: center;
-    color: $color-black;
-    box-sizing: border-box;
-  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    margin: 0 20px;
+    border-bottom: 1px solid var(--border);
 
-  .play-body {
-    @include layout(flex-start, stretch, row, wrap);
-  }
-}
+    .total {
+      font-size: $font-size-sm;
+    }
 
-.card-frame {
-  .card {
-    position: relative;
-    height: 0;
-    padding-bottom: 100%;
-    overflow: hidden;
-    border-radius: 5px;
+    .remove {
+      @include flex-center;
+      cursor: pointer;
+      font-size: $font-size-sm;
 
-    .card-img {
-      width: 100%;
-      transition: all 0.4s ease;
+      .text {
+        display: inline-block;
+        margin-left: 4px;
+      }
     }
   }
 
-  .card-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    margin: 0.5rem 0;
+  .song-table-wrap {
+    flex: 1;
+    overflow-y: auto;
   }
 
-  &:hover .card-img {
-    transform: scale(1.2);
-  }
-}
-
-.mask {
-  position: absolute;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 5px;
-  background-color: rgba(52, 47, 41, 0.4);
-  @include layout(center, center);
-  transition: all 0.3s ease-in-out;
-  opacity: 0;
-
-  .mask-icon {
-    @include icon(2em, rgba(240, 240, 240, 1));
-  }
-
-  &:hover {
-    opacity: 1;
-    cursor: pointer;
-  }
-}
-
-@media screen and (min-width: $sm) {
-  .card-frame {
-    width: 18%;
-    margin: 0.5rem 1%;
-  }
-}
-
-@media screen and (max-width: $sm) {
-  .card-frame {
-    width: 46%;
-    margin: 0.5rem 2%;
+  .empty {
+    @include flex-center();
+    flex: 1;
   }
 }
 </style>
